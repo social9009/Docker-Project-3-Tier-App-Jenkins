@@ -1,4 +1,4 @@
-												DevOps Exam App - Kastro
+												DevOps Exam App - Akshay
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 *********************************************
@@ -212,7 +212,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "kastrov/devopsexamapp:latest"
+        DOCKER_IMAGE = "hitfast/devopsexamapp:latest"
         SCANNER_HOME = tool 'sonar-scanner'
     }
 
