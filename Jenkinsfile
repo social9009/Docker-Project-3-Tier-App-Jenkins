@@ -10,50 +10,68 @@ pipeline {
     stages {
         stage('Git Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/social9009/Docker-Project-3-Tier-App-Jenkins.git', 
+                git url: 'https://github.com/social9009/Docker-Project-3-Tier-App-Jenkins.git',
                     branch: 'main'
             }
         }
 
-        stage('Verify Docker Compose') {
+        stage('Verify Docker & Compose') {
             steps {
                 sh '''
+                echo "=== Docker Version ==="
+                docker version
+                echo "=== Docker Compose Version ==="
                 docker compose version || { echo "Docker Compose not available"; exit 1; }
                 '''
+            }
+        }
+
+        stage('Docker Login') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    '''
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 dir('backend') {
-                    script {
-                        withDockerRegistry(credentialsId: 'docker-creds', toolName: 'docker') {
-                            sh "docker build -t ${DOCKER_IMAGE} ."
-                        }
-                    }
+                    sh '''
+                    docker build -t ${DOCKER_IMAGE} .
+                    '''
                 }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                sh '''
+                docker push ${DOCKER_IMAGE}
+                '''
             }
         }
 
         stage('Deploy with Docker Compose') {
             steps {
                 sh '''
-                # Clean up any existing containers
                 docker compose down --remove-orphans || true
-                
-                # Start services with build
                 docker compose up -d --build
-                
-                # Wait for MySQL to be ready
+
                 echo "Waiting for MySQL to be ready..."
                 timeout 120s bash -c '
                 while ! docker compose exec -T mysql mysqladmin ping -uroot -prootpass --silent;
-                do 
-                    sleep 5;
-                    docker compose logs mysql --tail=5 || true;
+                do
+                    sleep 5
+                    docker compose logs mysql --tail=5 || true
                 done'
                 
-                # Additional wait for full initialization
                 sleep 10
                 '''
             }
@@ -64,6 +82,7 @@ pipeline {
                 sh '''
                 echo "=== Container Status ==="
                 docker compose ps -a
+
                 echo "=== Testing Flask Endpoint ==="
                 curl -I http://localhost:5000 || true
                 '''
@@ -92,7 +111,7 @@ pipeline {
     }
 }
 
-
+------------------------------------------------------------------------------------------------------------------------------------------------------
 #Docker Push Is Included Below
 pipeline {
     agent any
