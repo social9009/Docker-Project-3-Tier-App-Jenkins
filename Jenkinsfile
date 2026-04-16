@@ -4,14 +4,14 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "kastrov/devopsexamapp:latest"
+        DOCKER_IMAGE = "hitfast/devopsexamapp:latest"
     }
 
     stages {
         stage('Git Checkout') {
             steps {
-                git url: 'https://github.com/KastroVKiran/devops-exam-app.git', 
-                    branch: 'master'
+                git branch: 'main', url: 'https://github.com/social9009/Docker-Project-3-Tier-App-Jenkins.git', 
+                    branch: 'main'
             }
         }
 
