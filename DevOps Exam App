@@ -339,3 +339,118 @@ pipeline {
         }
     }
 }
+
+--------------------------------------------------------------------------------------------------------------------
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = "hitfast/devopsexamapp:latest"
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git url: 'https://github.com/social9009/Docker-Project-3-Tier-App-Jenkins.git',
+                    branch: 'main'
+            }
+        }
+
+        stage('Verify Docker & Compose') {
+            steps {
+                sh '''
+                echo "=== Docker Version ==="
+                docker version
+                echo "=== Docker Compose Version ==="
+                docker compose version || { echo "Docker Compose not available"; exit 1; }
+                '''
+            }
+        }
+
+        stage('Docker Login') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir('backend') {
+                    sh '''
+                    docker build -t ${DOCKER_IMAGE} .
+                    '''
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                sh '''
+                docker push ${DOCKER_IMAGE}
+                '''
+            }
+        }
+
+        stage('Deploy with Docker Compose') {
+            steps {
+                sh '''
+                docker compose down --remove-orphans || true
+                docker compose up -d --build
+
+                echo "Waiting for MySQL to be ready..."
+                timeout 120s bash -c '
+                while ! docker compose exec -T mysql mysqladmin ping -uroot -prootpass --silent;
+                do
+                    sleep 5
+                    docker compose logs mysql --tail=5 || true
+                done'
+                
+                sleep 10
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                echo "=== Container Status ==="
+                docker compose ps -a
+
+                echo "=== Testing Flask Endpoint ==="
+                curl -I http://localhost:5000 || true
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '🚀 Deployment successful!'
+            sh 'docker compose ps'
+        }
+        failure {
+            echo '❗ Pipeline failed. Check logs above.'
+            sh '''
+            echo "=== Error Investigation ==="
+            docker compose logs --tail=50 || true
+            '''
+        }
+        always {
+            sh '''
+            echo "=== Final Logs ==="
+            docker compose logs --tail=20 || true
+            '''
+        }
+    }
+}
+
+
+
